@@ -19,7 +19,7 @@ public class WordCount {
         // 创建执行环境
         ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
         // 读取数据
-        DataSource<String> inputData = env.readTextFile("D:\\code\\flink\\UserBehaviorAnalysis\\HotItemsAnalysis\\src\\main\\resources\\hello.txt");
+        DataSource<String> inputData = env.readTextFile("D:\\code\\flink\\FlinkTutorial\\src\\main\\resources\\hello.txt");
         // 用faltmap处理数据，之后进行分组计算
         AggregateOperator<Tuple2<String, Integer>> result = inputData.flatMap(new MyFlatMapFunction())
                 .groupBy(0)

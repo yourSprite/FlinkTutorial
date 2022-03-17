@@ -1,12 +1,4 @@
-package com.atguigu.apitest.source;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.source
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/7 11:54
- */
+package com.atguigu.apitest.source;
 
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -16,10 +8,9 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import java.util.Properties;
 
 /**
- * @ClassName: SourceTest3_Kafka
- * @Description:
- * @Author: wushengran on 2020/11/7 11:54
- * @Version: 1.0
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/17
  */
 public class SourceTest3_Kafka {
     public static void main(String[] args) throws Exception{

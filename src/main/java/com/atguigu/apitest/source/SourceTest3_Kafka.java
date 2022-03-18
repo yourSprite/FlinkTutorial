@@ -7,12 +7,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -21,7 +16,7 @@ import java.util.Properties;
  * @date 2022/3/17
  */
 public class SourceTest3_Kafka {
-    public static <OUT> void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         // kafka读取数据
@@ -33,7 +28,7 @@ public class SourceTest3_Kafka {
 
         DataStream<String> dataStream = env.addSource(new FlinkKafkaConsumer<>("sensor", new SimpleStringSchema(), properties));
 
-        // 使用KafkaSource读取数据
+//        // 使用KafkaSource读取数据
 //        KafkaSource<String> source = KafkaSource.<String>builder()
 //                .setBootstrapServers("localhost:9092")
 //                .setTopics("test2")

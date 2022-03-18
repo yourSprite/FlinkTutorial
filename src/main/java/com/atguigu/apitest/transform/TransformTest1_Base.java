@@ -1,57 +1,55 @@
-package com.atguigu.apitest.transform;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.transform
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/7 14:28
- */
+package com.atguigu.apitest.transform;
 
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
 
 /**
- * @ClassName: TransformTest1_Base
- * @Description:
- * @Author: wushengran on 2020/11/7 14:28
- * @Version: 1.0
+ * <p>map 1对1
+ * <p>faltmap 1对多
+ * <p>fliter 多对1
+ *
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/18
  */
 public class TransformTest1_Base {
-    public static void main(String[] args) throws Exception{
+    public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 
         // 从文件读取数据
-        DataStream<String> inputStream = env.readTextFile("D:\\Projects\\BigData\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
+        DataStreamSource<String> inputStream = env.readTextFile("D:\\code\\flink\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
 
-        // 1. map，把String转换成长度输出
-        DataStream<Integer> mapStream = inputStream.map(new MapFunction<String, Integer>() {
+        // map，把String转换成长度输出
+        SingleOutputStreamOperator<Object> mapStream = inputStream.map(new MapFunction<String, Object>() {
             @Override
-            public Integer map(String value) throws Exception {
-                return value.length();
+            public Object map(String s) throws Exception {
+                return s.length();
             }
         });
 
-        // 2. flatmap，按逗号分字段
-        DataStream<String> flatMapStream = inputStream.flatMap(new FlatMapFunction<String, String>() {
+
+        // flatmap，按逗号分字段
+        SingleOutputStreamOperator<Object> flatMapStream = inputStream.flatMap(new FlatMapFunction<String, Object>() {
             @Override
-            public void flatMap(String value, Collector<String> out) throws Exception {
-                String[] fields = value.split(",");
-                for( String field: fields )
-                    out.collect(field);
+            public void flatMap(String s, Collector<Object> collector) throws Exception {
+                String[] fields = s.split(",");
+                for (String field : fields) {
+                    collector.collect(field);
+                }
             }
         });
 
-        // 3. filter, 筛选sensor_1开头的id对应的数据
-        DataStream<String> filterStream = inputStream.filter(new FilterFunction<String>() {
+        // filter, 筛选sensor_1开头的id对应的数据
+        SingleOutputStreamOperator<String> filterStream = inputStream.filter(new FilterFunction<String>() {
             @Override
-            public boolean filter(String value) throws Exception {
-                return value.startsWith("sensor_1");
+            public boolean filter(String s) throws Exception {
+                return s.startsWith("sensor_1");
             }
         });
 

@@ -1,32 +1,22 @@
-package com.atguigu.apitest.transform;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.transform
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/7 16:14
- */
+package com.atguigu.apitest.transform;
 
 import com.atguigu.apitest.beans.SensorReading;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.datastream.SplitStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.CoMapFunction;
-
-import java.util.Collections;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 
 /**
- * @ClassName: TransformTest4_MultipleStreams
- * @Description:
- * @Author: wushengran on 2020/11/7 16:14
- * @Version: 1.0
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/19
  */
 public class TransformTest4_MultipleStreams {
     public static void main(String[] args) throws Exception {
@@ -34,41 +24,52 @@ public class TransformTest4_MultipleStreams {
         env.setParallelism(1);
 
         // 从文件读取数据
-        DataStream<String> inputStream = env.readTextFile("D:\\Projects\\BigData\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
+        DataStream<String> inputStream = env.readTextFile("D:\\code\\flink\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
 
         // 转换成SensorReading
         DataStream<SensorReading> dataStream = inputStream.map(line -> {
             String[] fields = line.split(",");
             return new SensorReading(fields[0], new Long(fields[1]), new Double(fields[2]));
-        } );
+        });
 
-        // 1. 分流，按照温度值30度为界分为两条流
-        SplitStream<SensorReading> splitStream = dataStream.split(new OutputSelector<SensorReading>() {
+        // 使用侧输出流进行分流，此版本split已移除
+        SingleOutputStreamOperator<Object> processStream = dataStream.process(new ProcessFunction<SensorReading, Object>() {
             @Override
-            public Iterable<String> select(SensorReading value) {
-                return (value.getTemperature() > 30) ? Collections.singletonList("high") : Collections.singletonList("low");
+            public void processElement(SensorReading value, ProcessFunction<SensorReading, Object>.Context ctx, Collector<Object> out) {
+                if (value.getTemperature() > 30) {
+                    ctx.output(new OutputTag<SensorReading>("high") {
+                    }, value);
+                } else {
+                    ctx.output(new OutputTag<SensorReading>("low") {
+                    }, value);
+                }
             }
         });
 
-        DataStream<SensorReading> highTempStream = splitStream.select("high");
-        DataStream<SensorReading> lowTempStream = splitStream.select("low");
-        DataStream<SensorReading> allTempStream = splitStream.select("high", "low");
+        processStream.getSideOutput(new OutputTag<SensorReading>("high") {
+        }).print("high");
+        processStream.getSideOutput(new OutputTag<SensorReading>("low") {
+        }).print("low");
 
-        highTempStream.print("high");
-        lowTempStream.print("low");
-        allTempStream.print("all");
+        // 合流connect，姜高温流转换成二院组类型，与低温流合并之后，输出状态信息
+        DataStream<SensorReading> highTempStream = processStream.getSideOutput(new OutputTag<SensorReading>("high") {
+        });
+        DataStream<SensorReading> lowTempStream = processStream.getSideOutput(new OutputTag<SensorReading>("low") {
+        });
 
-        // 2. 合流 connect，将高温流转换成二元组类型，与低温流连接合并之后，输出状态信息
-        DataStream<Tuple2<String, Double>> warningStream = highTempStream.map(new MapFunction<SensorReading, Tuple2<String, Double>>() {
+        // 高温流转换二元组
+        SingleOutputStreamOperator<Tuple2<String, Double>> warningStream = highTempStream.map(new MapFunction<SensorReading, Tuple2<String, Double>>() {
             @Override
             public Tuple2<String, Double> map(SensorReading value) throws Exception {
-                return new Tuple2<>(value.getId(), value.getTemperature());
+                return new Tuple2<String, Double>(value.getId(), value.getTemperature());
             }
         });
 
-        ConnectedStreams<Tuple2<String, Double>, SensorReading> connectedStreams = warningStream.connect(lowTempStream);
+        // 合流
+        ConnectedStreams<Tuple2<String, Double>, SensorReading> connectStream = warningStream.connect(lowTempStream);
 
-        DataStream<Object> resultStream = connectedStreams.map(new CoMapFunction<Tuple2<String, Double>, SensorReading, Object>() {
+        // coMap
+        SingleOutputStreamOperator<Object> resultStream = connectStream.map(new CoMapFunction<Tuple2<String, Double>, SensorReading, Object>() {
             @Override
             public Object map1(Tuple2<String, Double> value) throws Exception {
                 return new Tuple3<>(value.f0, value.f1, "high temp warning");
@@ -81,10 +82,6 @@ public class TransformTest4_MultipleStreams {
         });
 
         resultStream.print();
-
-        // 3. union联合多条流
-//        warningStream.union(lowTempStream);
-        highTempStream.union(lowTempStream, allTempStream);
 
         env.execute();
     }

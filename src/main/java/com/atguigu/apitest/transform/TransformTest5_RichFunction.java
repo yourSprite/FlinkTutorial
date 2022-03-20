@@ -10,15 +10,10 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 /**
- * 1.侧输出流
- * 2.connect合并流（2条），数据类型可以不同
- * 3.union合并流（多条），数据类型必须相同
- *
  * @author wangyutian
  * @version 1.0
  * @date 2022/3/20
  */
-
 public class TransformTest5_RichFunction {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

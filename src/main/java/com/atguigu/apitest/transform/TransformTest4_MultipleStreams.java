@@ -14,6 +14,10 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
 /**
+ * 1.侧输出流
+ * 2.connect合并流（2条），数据类型可以不同
+ * 3.union合并流（多条），数据类型必须相同
+ *
  * @author wangyutian
  * @version 1.0
  * @date 2022/3/19
@@ -81,7 +85,11 @@ public class TransformTest4_MultipleStreams {
             }
         });
 
-        resultStream.print();
+        resultStream.print("resultStream");
+
+        // union 联合多条流，数据类型要相同
+        DataStream<SensorReading> allTempStream = highTempStream.union(lowTempStream);
+        allTempStream.print("allTempStream");
 
         env.execute();
     }

@@ -1,49 +1,28 @@
-package com.atguigu.apitest.window;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.window
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/9 14:37
- */
+package com.atguigu.apitest.window;
 
 import com.atguigu.apitest.beans.SensorReading;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
-import java.util.Arrays;
-import java.util.Collections;
-
 /**
- * @ClassName: WindowTest1_TimeWindow
- * @Description:
- * @Author: wushengran on 2020/11/9 14:37
- * @Version: 1.0
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/23
  */
 public class WindowTest1_TimeWindow {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-
-//        // 从文件读取数据
-//        DataStream<String> inputStream = env.readTextFile("D:\\Projects\\BigData\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
 
         // socket文本流
         DataStream<String> inputStream = env.socketTextStream("localhost", 7777);
@@ -55,13 +34,10 @@ public class WindowTest1_TimeWindow {
         });
 
         // 开窗测试
-
         // 1. 增量聚合函数
-        DataStream<Integer> resultStream = dataStream.keyBy("id")
-//                .countWindow(10, 2);
-//                .window(EventTimeSessionWindows.withGap(Time.minutes(1)));
-//                .window(TumblingProcessingTimeWindows.of(Time.seconds(15)))
-                .timeWindow(Time.seconds(15))
+        SingleOutputStreamOperator<Integer> resultStream1 = dataStream
+                .keyBy(SensorReading::getId)
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
                 .aggregate(new AggregateFunction<SensorReading, Integer, Integer>() {
                     @Override
                     public Integer createAccumulator() {
@@ -83,21 +59,24 @@ public class WindowTest1_TimeWindow {
                         return a + b;
                     }
                 });
+        resultStream1.print("增量聚合函数");
 
-        // 2. 全窗口函数
-        SingleOutputStreamOperator<Tuple3<String, Long, Integer>> resultStream2 = dataStream.keyBy("id")
-                .timeWindow(Time.seconds(15))
-//                .process(new ProcessWindowFunction<SensorReading, Object, Tuple, TimeWindow>() {
-//                })
-                .apply(new WindowFunction<SensorReading, Tuple3<String, Long, Integer>, Tuple, TimeWindow>() {
+        // 2.全窗口函数
+        SingleOutputStreamOperator<Tuple3<String, Long, Integer>> resultStream2 = dataStream
+                .keyBy(SensorReading::getId)
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .process(new ProcessWindowFunction<SensorReading, Tuple3<String, Long, Integer>, String, TimeWindow>() {
                     @Override
-                    public void apply(Tuple tuple, TimeWindow window, Iterable<SensorReading> input, Collector<Tuple3<String, Long, Integer>> out) throws Exception {
-                        String id = tuple.getField(0);
-                        Long windowEnd = window.getEnd();
-                        Integer count = IteratorUtils.toList(input.iterator()).size();
+                    public void process(String s, ProcessWindowFunction<SensorReading, Tuple3<String, Long, Integer>, String, TimeWindow>.Context context, Iterable<SensorReading> elements, Collector<Tuple3<String, Long, Integer>> out) throws Exception {
+                        String id = s;
+                        Long windowEnd = context.window().getEnd();
+                        Integer count = IteratorUtils.toList(elements.iterator()).size();
                         out.collect(new Tuple3<>(id, windowEnd, count));
                     }
                 });
+        resultStream2.print("全窗口函数");
+
+        env.execute();
 
         // 3. 其它可选API
         OutputTag<SensorReading> outputTag = new OutputTag<SensorReading>("late") {
@@ -105,17 +84,10 @@ public class WindowTest1_TimeWindow {
 
         SingleOutputStreamOperator<SensorReading> sumStream = dataStream.keyBy("id")
                 .timeWindow(Time.seconds(15))
-//                .trigger()
-//                .evictor()
                 .allowedLateness(Time.minutes(1))
                 .sideOutputLateData(outputTag)
                 .sum("temperature");
 
         sumStream.getSideOutput(outputTag).print("late");
-
-        resultStream2.print();
-
-
-        env.execute();
     }
 }

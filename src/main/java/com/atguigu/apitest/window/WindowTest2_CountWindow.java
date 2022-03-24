@@ -1,34 +1,21 @@
-package com.atguigu.apitest.window;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.window
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/9 16:19
- */
+package com.atguigu.apitest.window;
 
 import com.atguigu.apitest.beans.SensorReading;
 import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 /**
- * @ClassName: WindowTest2_CountWindow
- * @Description:
- * @Author: wushengran on 2020/11/9 16:19
- * @Version: 1.0
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/24
  */
 public class WindowTest2_CountWindow {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-
-//        // 从文件读取数据
-//        DataStream<String> inputStream = env.readTextFile("D:\\Projects\\BigData\\FlinkTutorial\\src\\main\\resources\\sensor.txt");
 
         // socket文本流
         DataStream<String> inputStream = env.socketTextStream("localhost", 7777);
@@ -40,34 +27,33 @@ public class WindowTest2_CountWindow {
         });
 
         // 开计数窗口测试
-        SingleOutputStreamOperator<Double> avgTempResultStream = dataStream.keyBy("id")
+        SingleOutputStreamOperator<Double> avgTempResultStream = dataStream
+                .keyBy(SensorReading::getId)
                 .countWindow(10, 2)
-                .aggregate(new MyAvgTemp());
+                .aggregate(new AggregateFunction<SensorReading, Tuple2<Double, Integer>, Double>() {
+                    @Override
+                    public Tuple2<Double, Integer> createAccumulator() {
+                        return new Tuple2<>(.0, 0);
+                    }
+
+                    @Override
+                    public Tuple2<Double, Integer> add(SensorReading value, Tuple2<Double, Integer> accumulator) {
+                        return new Tuple2<>(value.getTemperature() + accumulator.f0, accumulator.f1 + 1);
+                    }
+
+                    @Override
+                    public Double getResult(Tuple2<Double, Integer> accumulator) {
+                        return accumulator.f0 / accumulator.f1;
+                    }
+
+                    @Override
+                    public Tuple2<Double, Integer> merge(Tuple2<Double, Integer> a, Tuple2<Double, Integer> b) {
+                        return new Tuple2<>(a.f0 + b.f0, a.f1 + b.f1);
+                    }
+                });
 
         avgTempResultStream.print();
 
         env.execute();
-    }
-
-    public static class MyAvgTemp implements AggregateFunction<SensorReading, Tuple2<Double, Integer>, Double>{
-        @Override
-        public Tuple2<Double, Integer> createAccumulator() {
-            return new Tuple2<>(0.0, 0);
-        }
-
-        @Override
-        public Tuple2<Double, Integer> add(SensorReading value, Tuple2<Double, Integer> accumulator) {
-            return new Tuple2<>(accumulator.f0 + value.getTemperature(), accumulator.f1 + 1);
-        }
-
-        @Override
-        public Double getResult(Tuple2<Double, Integer> accumulator) {
-            return accumulator.f0 / accumulator.f1;
-        }
-
-        @Override
-        public Tuple2<Double, Integer> merge(Tuple2<Double, Integer> a, Tuple2<Double, Integer> b) {
-            return new Tuple2<>(a.f0 + b.f0, a.f1 + b.f1);
-        }
     }
 }

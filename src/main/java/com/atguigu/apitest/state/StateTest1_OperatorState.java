@@ -64,8 +64,9 @@ public class StateTest1_OperatorState {
 
         @Override
         public void restoreState(List<Integer> state) throws Exception {
-            for( Integer num: state )
+            for( Integer num: state ) {
                 count += num;
+            }
         }
     }
 }

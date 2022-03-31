@@ -1,26 +1,15 @@
-package com.atguigu.apitest.tableapi;/**
- * Copyright (c) 2018-2028 尚硅谷 All Rights Reserved
- * <p>
- * Project: FlinkTutorial
- * Package: com.atguigu.apitest.tableapi
- * Version: 1.0
- * <p>
- * Created by wushengran on 2020/11/13 14:01
- */
+package com.atguigu.apitest.tableapi;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.java.StreamTableEnvironment;
-import org.apache.flink.table.descriptors.Csv;
-import org.apache.flink.table.descriptors.Kafka;
-import org.apache.flink.table.descriptors.Schema;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.types.Row;
 
 /**
- * @ClassName: TableTest4_KafkaPipeLine
- * @Description:
- * @Author: wushengran on 2020/11/13 14:01
- * @Version: 1.0
+ * @author wangyutian
+ * @version 1.0
+ * @date 2022/3/31
  */
 public class TableTest4_KafkaPipeLine {
     public static void main(String[] args) throws Exception {
@@ -28,50 +17,48 @@ public class TableTest4_KafkaPipeLine {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
 
-        StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
+        // 基于Blink的流处理
+        EnvironmentSettings blinkStreamSettings = EnvironmentSettings.newInstance()
+                .useBlinkPlanner()
+                .inStreamingMode()
+                .build();
+        StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env, blinkStreamSettings);
 
         // 2. 连接Kafka，读取数据
-        tableEnv.connect(new Kafka()
-                .version("0.11")
-                .topic("sensor")
-                .property("zookeeper.connect", "localhost:2181")
-                .property("bootstrap.servers", "localhost:9092")
-        )
-                .withFormat(new Csv())
-                .withSchema(new Schema()
-                        .field("id", DataTypes.STRING())
-                        .field("timestamp", DataTypes.BIGINT())
-                        .field("temp", DataTypes.DOUBLE())
-                )
-                .createTemporaryTable("inputTable");
+        String statement = "CREATE TABLE inputTable (" +
+                "  id STRING," +
+                "  `timestamp` BIGINT," +
+                "  temp DOUBLE" +
+                ")WITH (" +
+                "  'connector' = 'kafka'," +
+                "  'topic' = 'sensor'," +
+                "  'properties.bootstrap.servers' = 'localhost:9092'," +
+                "  'properties.group.id' = 'testGroup'," +
+                "  'scan.startup.mode' = 'earliest-offset'," +
+                "  'format' = 'csv'" +
+                ")";
+        tableEnv.executeSql(statement);
 
         // 3. 查询转换
         // 简单转换
-        Table sensorTable = tableEnv.from("inputTable");
-        Table resultTable = sensorTable.select("id, temp")
-                .filter("id === 'sensor_6'");
+        Table resultTable = tableEnv.sqlQuery("select id, temp from inputTable where id = 'sensor_1'");
+        tableEnv.toAppendStream(resultTable, Row.class).print("result");
 
-        // 聚合统计
-        Table aggTable = sensorTable.groupBy("id")
-                .select("id, id.count as count, temp.avg as avgTemp");
 
         // 4. 建立kafka连接，输出到不同的topic下
-        tableEnv.connect(new Kafka()
-                .version("0.11")
-                .topic("sinktest")
-                .property("zookeeper.connect", "localhost:2181")
-                .property("bootstrap.servers", "localhost:9092")
-        )
-                .withFormat(new Csv())
-                .withSchema(new Schema()
-                        .field("id", DataTypes.STRING())
-//                        .field("timestamp", DataTypes.BIGINT())
-                        .field("temp", DataTypes.DOUBLE())
-                )
-                .createTemporaryTable("outputTable");
+        statement = "CREATE TABLE outputTable (" +
+                "  id STRING," +
+                "  temp DOUBLE" +
+                ")WITH (" +
+                "  'connector' = 'kafka'," +
+                "  'topic' = 'test'," +
+                "  'properties.bootstrap.servers' = 'localhost:9092'," +
+                "  'properties.group.id' = 'testGroup'," +
+                "  'scan.startup.mode' = 'earliest-offset'," +
+                "  'format' = 'csv'" +
+                ")";
+        tableEnv.executeSql(statement);
 
-        resultTable.insertInto("outputTable");
-
-        env.execute();
+        resultTable.executeInsert("outputTable");
     }
 }
